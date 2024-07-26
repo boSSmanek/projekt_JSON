@@ -57,9 +57,10 @@ class Application(tk.Tk):
                 with open(file_path, "r", encoding="utf-8") as file:
                     data = json.load(file)
                     self.populate_tree_view(data)
-            except json.JSONDecodeError:
+                messagebox.showinfo("Status", "Opening file OK")
+            except Exception as e:
                 messagebox.showerror(
-                    "Error", "Failed to decode JSON file. Please check the file format."
+                    "Status", f"Error opening file: {str(e)}"
                 )
 
     def export_json_file(self):
@@ -70,7 +71,7 @@ class Application(tk.Tk):
             data = self.tree_to_dict()
             try:
                 with open(file_path, "w", encoding="utf-8") as file:
-                    json.dump(data, file, indent=2)  # Use 2 spaces for indentation
+                    json.dump(data, file, indent=2)
                 messagebox.showinfo("Status", message=f"Export saved: {file_path}")
             except Exception as e:
                 messagebox.showinfo(

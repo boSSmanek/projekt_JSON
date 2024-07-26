@@ -12,20 +12,6 @@ class Application(tk.Tk):
         self.title("Aplikacja")
         self.geometry("800x600")
 
-        # Menubar
-        """ self.menu_bar = Menu(self)
-        self.config(menu=self.menu_bar)
-
-        self.options_menu = Menu(self.menu_bar, tearoff=1)
-        self.menu_bar.add_cascade(label="Options", menu=self.options_menu)
-        self.options_menu.add_command(
-            label="Open JSON File", command=self.open_json_file
-        )
-        self.options_menu.add_command(
-            label="Export JSON", command=self.export_json_file
-        )
-        self.options_menu.add_command(label="Exit", command=self.quit) """
-
         # Buttons to open JSON file and export JSON
         button_frame = ttk.Frame(self)
         button_frame.pack(side=tk.TOP, fill=tk.X)
@@ -72,30 +58,11 @@ class Application(tk.Tk):
                     data = json.load(file)
                     self.populate_tree_view(data)
                 messagebox.showinfo(title="Status", message="Opening file OK")
-            except Exception as e:
+            except json.JSONDecodeError:
                 messagebox.showerror(
-                    title="Status", message=f"Error opening file: {str(e)}"
+                    title="Error",
+                    message="Error opening file. Check if the file format is correct.",
                 )
-
-    """ def export_json_file(self):
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".json", filetypes=FILETYPES
-        )
-
-        if file_path:
-            selected_item = self.tree.selection()[0]
-            full_data = self.tree.set(selected_item, "full_data")
-            data_dict = json.loads(full_data)
-            try:
-                with open(file_path, "w", encoding="utf-8") as file:
-                    json.dump(data_dict, file, indent=4)
-                messagebox.showinfo(
-                    title="Status", message=f"Export saved: {file_path}"
-                )
-            except Exception as e:
-                messagebox.showerror(
-                    title="Status", message=f"Error exporting to file: {str(e)}"
-                ) """
 
     def export_json_file(self):
         file_path = filedialog.asksaveasfilename(
@@ -106,14 +73,14 @@ class Application(tk.Tk):
             try:
                 with open(file_path, "w", encoding="utf-8") as file:
                     json.dump(data, file, indent=2)
-                messagebox.showinfo("Status", message=f"Export saved: {file_path}")
-            except Exception as e:
                 messagebox.showinfo(
-                    "Status", message=f"Error exporting to file: {str(e)}"
+                    title="Status", message=f"Export saved: {file_path}"
                 )
+            except json.JSONDecodeError:
+                messagebox.showerror(title="Error", message="Exporting failed.")
 
     def populate_tree_view(self, data, parent=""):
-        textId = data["textId"]
+        textId = data.get("textId", "")
         if textId.startswith("IDT_"):
             textId = textId[4:]
         item_id = self.tree.insert(parent, "end", text=textId, open=False)
@@ -123,45 +90,100 @@ class Application(tk.Tk):
             for submenu in data["SUBMENU"]:
                 self.populate_tree_view(submenu, item_id)
 
-    def saved_current_data(self):
+    def save_current_data(self):
         if self.current_item:
-            new_data = self.text.get(1.0, tk.END)
-            try:
-                data_dict = json.loads(new_data)
-                self.tree.set(self.current_item, "full_data", json.dumps(data_dict))
-            except json.JSONDecodeError:
-                messagebox.showerror("Error", "Invalid data. Please correct it.")
+            new_data = self.text.get(1.0, tk.END).strip()
+            if new_data:  # Ensure there's data to update
+                try:
+                    data_dict = json.loads(new_data)
+                    full_data = self.tree.set(self.current_item, "full_data")
+                    if full_data:
+                        original_data = json.loads(full_data)
+
+                        # Preserve valueType if it exists in original data
+                        if "valueType" in original_data:
+                            if data_dict["valueType"] != original_data["valueType"]:
+                                messagebox.showerror(
+                                    title="Error", message="Don't change 'valueType'"
+                                )
+                                data_dict["valueType"] = original_data["valueType"]
+
+                        # Update original data with new data
+                        original_data.update(data_dict)
+                        # Update the textId in the Treeview item
+                        textId = original_data.get("textId", "")
+                        if textId.startswith("IDT_"):
+                            textId = textId[4:]
+                        self.tree.item(self.current_item, text=textId)
+                        # Save the updated full data back to the tree
+                        self.tree.set(
+                            self.current_item, "full_data", json.dumps(original_data)
+                        )
+                except json.JSONDecodeError:
+                    messagebox.showerror(
+                        title="Error", message="Invalid JSON data. Please correct it."
+                    )
 
     def display_selected_name(self, event):
-        self.saved_current_data()
+        self.save_current_data()  # Save changes before displaying new data
 
-        selected_item = self.tree.selection()[0]
-        # self.current_item = selected_item
-        full_data = self.tree.set(selected_item, "full_data")
-        data_dict = json.loads(full_data)
+        selected_item = self.tree.selection()
+        if not selected_item:
+            return
 
-        if "SUBMENU" in data_dict:
-            # Display main item fields only
-            main_fields = {
-                k: v
-                for k, v in data_dict.items()
-                if k in ["name", "textId", "iconId", "ID", "type", "onlyOnPanel"]
-            }
+        self.current_item = selected_item[0]  # Update current item
+        full_data = self.tree.set(self.current_item, "full_data")
+
+        if full_data:
+            data_dict = json.loads(full_data)
+
+            if data_dict.get("type") == "TT_WARTOSC":
+                filtered_data = {
+                    key: data_dict[key]
+                    for key in ("defVal", "minVal", "maxVal", "valueType")
+                    if key in data_dict
+                }
+            elif "SUBMENU" in data_dict:
+                filtered_data = {
+                    key: value
+                    for key, value in data_dict.items()
+                    if key in ["name", "textId", "iconId", "ID", "type", "onlyOnPanel"]
+                }
+            else:
+                filtered_data = data_dict
+
             self.text.delete(1.0, tk.END)
-            self.text.insert(tk.END, json.dumps(main_fields, indent=4))
-        elif data_dict["type"] == "TT_WARTOSC":
-            # Display value for type "TT_WARTOSC"
-            input_value = {
-                k: v
-                for k, v in data_dict.items()
-                if k in ["defVal", "minVal", "maxVal", "valueType"]
-            }
-            self.text.delete(1.0, tk.END)
-            self.text.insert(tk.END, json.dumps(input_value, indent=4))
+            self.text.insert(tk.END, json.dumps(filtered_data, indent=2))
+
         else:
-            # Display full data for SUBMENU items
-            self.text.delete(1.0, tk.END)
-            self.text.insert(tk.END, json.dumps(data_dict, indent=4))
+            messagebox.showerror(
+                title="Error",
+                message="No data found for the selected item. Please check the data.",
+            )
+
+    def tree_to_dict(self, item=""):
+        children = self.tree.get_children(item)
+
+        if not item:
+            if children:
+                return self.tree_to_dict(children[0])
+            else:
+                return {}
+
+        if not children:
+            full_data = self.tree.set(item, "full_data")
+            if full_data:
+                return json.loads(full_data)
+            else:
+                return {}
+
+        data = self.tree.set(item, "full_data")
+        if data:
+            data_dict = json.loads(data)
+            data_dict["SUBMENU"] = [self.tree_to_dict(child) for child in children]
+            return data_dict
+        else:
+            return {"SUBMENU": [self.tree_to_dict(child) for child in children]}
 
 
 def main():
