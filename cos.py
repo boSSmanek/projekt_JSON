@@ -12,7 +12,7 @@ class Application(tk.Tk):
         self.title("Aplikacja")
         self.geometry("800x600")
 
-        # Buttons for opening and exporting JSON files
+        # Buttons to open JSON file and export JSON
         button_frame = ttk.Frame(self)
         button_frame.pack(side=tk.TOP, fill=tk.X)
 
@@ -44,11 +44,20 @@ class Application(tk.Tk):
         # Text widget for displaying JSON data
         self.text = Text(paned_window, wrap=tk.WORD)
         self.text.insert(tk.END, "Select a file from options menu")
+        self.text.bind("<<Modified>>", self.on_text_modified)
         paned_window.add(self.text)
 
         paned_window.after(100, lambda: paned_window.sashpos(0, 300))
 
-        self.current_item = None  # Track the current selected item
+        self.current_item = None
+
+        self.text.edit_modified(False)
+
+        self.valueType_error_displayed = False
+
+    def on_text_modified(self, event):
+        self.text.edit_modified(True)
+        # self.save_current_data()
 
     def open_json_file(self):
         file_path = filedialog.askopenfilename(filetypes=FILETYPES)
@@ -56,11 +65,14 @@ class Application(tk.Tk):
             try:
                 with open(file_path, "r", encoding="utf-8") as file:
                     data = json.load(file)
+                    # self.tree.delete(*self.tree.get_children())
                     self.populate_tree_view(data)
-                messagebox.showinfo("Status", "Opening file OK")
-            except Exception as e:
+                messagebox.showinfo(title="Status", message="Opening file OK")
+                # self.text.edit_modified(False)
+            except json.JSONDecodeError:
                 messagebox.showerror(
-                    "Status", f"Error opening file: {str(e)}"
+                    title="Error",
+                    message="Error opening file. Check if the file format is correct.",
                 )
 
     def export_json_file(self):
@@ -72,11 +84,12 @@ class Application(tk.Tk):
             try:
                 with open(file_path, "w", encoding="utf-8") as file:
                     json.dump(data, file, indent=2)
-                messagebox.showinfo("Status", message=f"Export saved: {file_path}")
-            except Exception as e:
                 messagebox.showinfo(
-                    "Status", message=f"Error exporting to file: {str(e)}"
+                    title="Status", message=f"Export saved: {file_path}"
                 )
+                self.text.edit_modified(False)
+            except json.JSONDecodeError:
+                messagebox.showerror(title="Error", message="Exporting failed.")
 
     def populate_tree_view(self, data, parent=""):
         textId = data.get("textId", "")
@@ -90,29 +103,66 @@ class Application(tk.Tk):
                 self.populate_tree_view(submenu, item_id)
 
     def save_current_data(self):
-        if self.current_item:
-            new_data = self.text.get(1.0, tk.END).strip()
-            if new_data:  # Ensure there's data to update
-                try:
-                    data_dict = json.loads(new_data)
-                    full_data = self.tree.set(self.current_item, "full_data")
-                    if full_data:
-                        original_data = json.loads(full_data)
-                        # Update original data with new data
-                        original_data.update(data_dict)
-                        # Update the textId in the Treeview item
-                        textId = original_data.get("textId", "")
-                        if textId.startswith("IDT_"):
-                            textId = textId[4:]
-                        self.tree.item(self.current_item, text=textId)
-                        # Save the updated full data back to the tree
-                        self.tree.set(
-                            self.current_item, "full_data", json.dumps(original_data)
-                        )
-                except json.JSONDecodeError:
-                    messagebox.showerror(
-                        "Error", "Invalid JSON data. Please correct it."
-                    )
+        if not self.current_item:
+            return
+
+        new_data = self.text.get(1.0, tk.END).strip()
+        if not new_data:
+            return  # No data to update
+
+        try:
+            data_dict = json.loads(new_data)
+        except json.JSONDecodeError:
+            messagebox.showerror(
+                title="Error", message="Invalid JSON data. Please correct it."
+            )
+            return
+
+        full_data = self.tree.set(self.current_item, "full_data")
+        if not full_data:
+            return
+
+        original_data = json.loads(full_data)
+        self.preserve_value_type(original_data, data_dict)
+
+        # Update original data with new data
+        original_data.update(data_dict)
+
+        # Update the textId in the Treeview item
+        textId = original_data.get("textId", "").removeprefix("IDT_")
+        self.tree.item(self.current_item, text=textId)
+
+        # Save the updated full data back to the tree
+        self.tree.set(self.current_item, "full_data", json.dumps(original_data))
+        self.text.edit_modified(False)
+
+    def preserve_value_type(self, original_data, data_dict):
+        if (
+            "valueType" in original_data
+            and data_dict.get("valueType") != original_data["valueType"]
+        ):
+            if not self.valueType_error_displayed:
+                messagebox.showerror(title="Error", message="Don't change 'valueType'")
+                self.valueType_error_displayed = True
+            data_dict["valueType"] = original_data["valueType"]
+        else:
+            self.valueType_error_displayed = False  # Reset flag if no error
+
+    def ask_before_exit(self):
+        if self.text.edit_modified():
+            ask = messagebox.askyesnocancel(
+                title="Quit", message="Do you want save before exit?"
+            )
+
+            if ask is True:
+                self.export_json_file()
+                self.destroy()
+            elif ask is False:
+                self.destroy()
+            else:
+                return
+        else:
+            self.destroy()
 
     def display_selected_name(self, event):
         self.save_current_data()  # Save changes before displaying new data
@@ -125,37 +175,30 @@ class Application(tk.Tk):
         full_data = self.tree.set(self.current_item, "full_data")
 
         if full_data:
-            try:
-                data_dict = json.loads(full_data)
+            data_dict = json.loads(full_data)
 
-                if data_dict.get("type") == "TT_WARTOSC":
-                    filtered_data = {
-                        key: data_dict[key]
-                        for key in ("defVal", "minVal", "maxVal", "valueType")
-                        if key in data_dict
-                    }
-                elif "SUBMENU" in data_dict:
-                    filtered_data = {
-                        k: v
-                        for k, v in data_dict.items()
-                        if k
-                        in ["name", "textId", "iconId", "ID", "type", "onlyOnPanel"]
-                    }
-                else:
-                    filtered_data = data_dict
+            if data_dict.get("type") == "TT_WARTOSC":
+                filtered_data = {
+                    key: data_dict[key]
+                    for key in ("defVal", "minVal", "maxVal", "valueType")
+                    if key in data_dict
+                }
+            elif "SUBMENU" in data_dict:
+                filtered_data = {
+                    key: value
+                    for key, value in data_dict.items()
+                    if key in ["name", "textId", "iconId", "ID", "type", "onlyOnPanel"]
+                }
+            else:
+                filtered_data = data_dict
 
-                self.text.delete(1.0, tk.END)
-                self.text.insert(
-                    tk.END, json.dumps(filtered_data, indent=2)
-                )  # Display with 2-space indentation
-            except json.JSONDecodeError:
-                messagebox.showerror(
-                    "Error",
-                    "Invalid JSON data in the selected item. Please correct it.",
-                )
+            self.text.delete(1.0, tk.END)
+            self.text.insert(tk.END, json.dumps(filtered_data, indent=2))
+            self.text.edit_modified(False)
         else:
             messagebox.showerror(
-                "Error", "No data found for the selected item. Please check the data."
+                title="Error",
+                message="No data found for the selected item. Please check the data.",
             )
 
     def tree_to_dict(self, item=""):
@@ -170,34 +213,22 @@ class Application(tk.Tk):
         if not children:
             full_data = self.tree.set(item, "full_data")
             if full_data:
-                try:
-                    return json.loads(full_data)
-                except json.JSONDecodeError:
-                    messagebox.showerror(
-                        "Error", "Invalid JSON data found. Please correct it."
-                    )
-                    return {}
+                return json.loads(full_data)
             else:
                 return {}
 
         data = self.tree.set(item, "full_data")
         if data:
-            try:
-                data_dict = json.loads(data)
-                data_dict["SUBMENU"] = [self.tree_to_dict(child) for child in children]
-                return data_dict
-            except json.JSONDecodeError:
-                messagebox.showerror(
-                    "Error",
-                    "Invalid JSON data in the tree structure. Please correct it.",
-                )
-                return {}
+            data_dict = json.loads(data)
+            data_dict["SUBMENU"] = [self.tree_to_dict(child) for child in children]
+            return data_dict
         else:
             return {"SUBMENU": [self.tree_to_dict(child) for child in children]}
 
 
 def main():
     app = Application()
+    app.protocol("WM_DELETE_WINDOW", app.ask_before_exit)
     app.mainloop()
 
 

@@ -50,6 +50,8 @@ class Application(tk.Tk):
 
         self.current_item = None
 
+        self.text.edit_modified(False)
+
     def open_json_file(self):
         file_path = filedialog.askopenfilename(filetypes=FILETYPES)
         if file_path:
@@ -76,6 +78,7 @@ class Application(tk.Tk):
                 messagebox.showinfo(
                     title="Status", message=f"Export saved: {file_path}"
                 )
+                self.text.edit_modified(False)
             except json.JSONDecodeError:
                 messagebox.showerror(title="Error", message="Exporting failed.")
 
@@ -119,10 +122,27 @@ class Application(tk.Tk):
                         self.tree.set(
                             self.current_item, "full_data", json.dumps(original_data)
                         )
+                        self.text.edit_modified(False)
                 except json.JSONDecodeError:
                     messagebox.showerror(
                         title="Error", message="Invalid JSON data. Please correct it."
                     )
+
+    def ask_before_exit(self):
+        if self.text.edit_modified():
+            ask = messagebox.askyesnocancel(
+                title="Quit", message="Do you want save before exit?"
+            )
+
+            if ask:
+                self.export_json_file()
+                self.destroy()
+            elif ask is False:
+                self.destroy()
+            else:
+                return
+        else:
+            self.destroy()
 
     def display_selected_name(self, event):
         self.save_current_data()  # Save changes before displaying new data
@@ -154,7 +174,7 @@ class Application(tk.Tk):
 
             self.text.delete(1.0, tk.END)
             self.text.insert(tk.END, json.dumps(filtered_data, indent=2))
-
+            self.text.edit_modified(False)
         else:
             messagebox.showerror(
                 title="Error",
@@ -188,6 +208,7 @@ class Application(tk.Tk):
 
 def main():
     app = Application()
+    app.protocol("WM_DELETE_WINDOW", app.ask_before_exit)
     app.mainloop()
 
 
