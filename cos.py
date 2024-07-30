@@ -176,30 +176,37 @@ class Application(tk.Tk):
 
         if full_data:
             data_dict = json.loads(full_data)
+            filtered_data = self.filter_data(data_dict)
 
-            if data_dict.get("type") == "TT_WARTOSC":
-                filtered_data = {
-                    key: data_dict[key]
-                    for key in ("defVal", "minVal", "maxVal", "valueType")
-                    if key in data_dict
-                }
-            elif "SUBMENU" in data_dict:
-                filtered_data = {
-                    key: value
-                    for key, value in data_dict.items()
-                    if key in ["name", "textId", "iconId", "ID", "type", "onlyOnPanel"]
-                }
-            else:
-                filtered_data = data_dict
-
-            self.text.delete(1.0, tk.END)
-            self.text.insert(tk.END, json.dumps(filtered_data, indent=2))
-            self.text.edit_modified(False)
+            self.update_text_widget(filtered_data)
         else:
-            messagebox.showerror(
-                title="Error",
-                message="No data found for the selected item. Please check the data.",
-            )
+            self.show_no_data_error()
+
+    def filter_data(self, data_dict):
+        if data_dict.get("type") == "TT_WARTOSC":
+            return {
+                key: data_dict[key]
+                for key in ("defVal", "minVal", "maxVal", "valueType")
+                if key in data_dict
+            }
+        elif "SUBMENU" in data_dict:
+            return {
+                key: value
+                for key, value in data_dict.items()
+                if key in ["name", "textId", "iconId", "ID", "type", "onlyOnPanel"]
+            }
+        return data_dict
+
+    def update_text_widget(self, filtered_data):
+        self.text.delete(1.0, tk.END)
+        self.text.insert(tk.END, json.dumps(filtered_data, indent=2))
+        self.text.edit_modified(False)
+
+    def show_no_data_error(self):
+        messagebox.showerror(
+            title="Error",
+            message="No data found for the selected item. Please check the data.",
+        )
 
     def tree_to_dict(self, item=""):
         children = self.tree.get_children(item)
