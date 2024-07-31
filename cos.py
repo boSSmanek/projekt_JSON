@@ -47,7 +47,8 @@ class Application(tk.Tk):
         self.text.bind("<<Modified>>", self.on_text_modified)
         paned_window.add(self.text)
 
-        paned_window.after(100, lambda: paned_window.sashpos(0, 300))
+        self.update_idletasks()
+        paned_window.sashpos(0, 350)
 
         self.current_item = None
 
@@ -76,6 +77,8 @@ class Application(tk.Tk):
                 )
 
     def export_json_file(self):
+        self.save_current_data()
+
         file_path = filedialog.asksaveasfilename(
             defaultextension=".json", filetypes=FILETYPES
         )
