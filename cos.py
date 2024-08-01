@@ -12,7 +12,7 @@ class Application(tk.Tk):
         self.title("Aplikacja")
         self.geometry("800x600")
 
-        # Buttons to open JSON file and export JSON
+        # Buttons to open and export JSON file
         button_frame = ttk.Frame(self)
         button_frame.pack(side=tk.TOP, fill=tk.X)
 
@@ -26,26 +26,35 @@ class Application(tk.Tk):
         )
         export_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        # Main frame
-        main_frame = ttk.Frame(self)
-        main_frame.pack(fill=tk.BOTH, expand=1)
-
-        # Horizontal paned window
-        paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
+        # PanedWindow
+        paned_window = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         paned_window.pack(fill=tk.BOTH, expand=1)
 
+        # Left frame for Treeview and Scrollbar
+        tree_frame = ttk.Frame(paned_window)
+        paned_window.add(tree_frame, weight=1)
+
         # Treeview
-        self.tree = ttk.Treeview(paned_window, columns=("full_data"), show="tree")
+        self.tree = ttk.Treeview(tree_frame, columns=("full_data"), show="tree")
         self.tree.bind("<<TreeviewSelect>>", self.display_selected_name)
         self.tree.column("full_data", width=0, stretch=tk.NO)
         self.tree.heading("#0", text="Name")
-        paned_window.add(self.tree)
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Text widget for displaying JSON data
-        self.text = Text(paned_window, wrap=tk.WORD)
+        # Scrollbar
+        scroll_bar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        scroll_bar.pack(side="right", fill="y")
+        self.tree.configure(yscrollcommand=scroll_bar.set)
+
+        # Right frame for Text widget
+        text_frame = ttk.Frame(paned_window)
+        paned_window.add(text_frame, weight=3)
+
+        # Text widget for JSON data
+        self.text = Text(text_frame, wrap=tk.WORD)
+        self.text.pack(fill=tk.BOTH, expand=True)
         self.text.insert(tk.END, "Select a file from options menu")
         self.text.bind("<<Modified>>", self.on_text_modified)
-        paned_window.add(self.text)
 
         self.update_idletasks()
         paned_window.sashpos(0, 350)
