@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, Text, messagebox
 import json
+import csv
+from header_to_dict import open_CSV
 
 FILETYPES = [("JSON Files", "*.json"), ("All Files", "*.*")]
 
@@ -26,6 +28,11 @@ class Application(tk.Tk):
         )
         export_button.pack(side=tk.LEFT, padx=5, pady=5)
 
+        export_button_to_csv = ttk.Button(
+            button_frame, text="Export CSV", command=self.export_csv_file
+        )
+        export_button_to_csv.pack(side=tk.LEFT, padx=5, pady=5)
+
         # PanedWindow
         paned_window = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         paned_window.pack(fill=tk.BOTH, expand=1)
@@ -42,7 +49,9 @@ class Application(tk.Tk):
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Scrollbar
-        scroll_bar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        scroll_bar = ttk.Scrollbar(
+            tree_frame, orient="vertical", command=self.tree.yview
+        )
         scroll_bar.pack(side="right", fill="y")
         self.tree.configure(yscrollcommand=scroll_bar.set)
 
@@ -102,6 +111,74 @@ class Application(tk.Tk):
                 self.text.edit_modified(False)
             except json.JSONDecodeError:
                 messagebox.showerror(title="Error", message="Exporting failed.")
+
+    def export_csv_file(self):
+        self.save_current_data()
+
+        enum_dict = open_CSV("ID.h")
+
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV Files", "*.csv"), ("All Files", "*.*")],
+        )
+        if not file_path:
+            return
+
+        with open(file=file_path, mode="w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file, delimiter=";")
+
+            writer.writerow(
+                [
+                    "namespace",
+                    "instance_index",
+                    "id",
+                    "value_def",
+                    "value_min",
+                    "value_max",
+                ]
+            )
+
+            def extract_and_write(item, namespace="", instance_index=""):
+                children = self.tree.get_children(item)
+                if not children:
+                    full_data = self.tree.set(item, "full_data")
+                    if full_data:
+                        data = json.loads(full_data)
+
+                        numeric_id = data.get('ID', '')
+                        id_name = next((name for name, number in enum_dict.items() if number == numeric_id), numeric_id)
+                        if data.get("type") == "TT_WARTOSC":
+                            writer.writerow(
+                                [
+                                    namespace,
+                                    instance_index,
+                                    id_name,
+                                    data.get("defVal", ""),
+                                    data.get("minVal", ""),
+                                    data.get("maxVal", ""),
+                                ]
+                            )
+                        elif data.get("type") == "TT_CHECK_BOX":
+                            writer.writerow(
+                                [
+                                    namespace,
+                                    instance_index,
+                                    id_name,
+                                    data.get("defVal", ""),
+                                    0,
+                                    1,
+                                ]
+                            )
+                else:
+                    for child in children:
+                        extract_and_write(child, namespace, instance_index)
+
+            for root_item in self.tree.get_children():
+                extract_and_write(root_item)
+
+        messagebox.showinfo(
+            title="Export Complete", message=f"CSV file exported: {file_path}"
+        )
 
     def populate_tree_view(self, data, parent=""):
         textId = data.get("textId", "")
