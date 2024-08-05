@@ -33,6 +33,17 @@ class Application(tk.Tk):
         )
         export_button_to_csv.pack(side=tk.LEFT, padx=5, pady=5)
 
+        add_power_button = ttk.Button(
+            button_frame, text="Add power"
+        )
+        add_power_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        show_powers_button = ttk.Button(
+            button_frame, text="Show powers"
+        )
+        show_powers_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+
         # PanedWindow
         paned_window = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         paned_window.pack(fill=tk.BOTH, expand=1)
