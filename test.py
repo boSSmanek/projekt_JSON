@@ -16,6 +16,7 @@ class Application(tk.Tk):
 
         self.powers = []
         self.powers_window = None
+        self.load_powers_from_file()
         
         # Buttons to open and export JSON file
         button_frame = ttk.Frame(self)
@@ -88,7 +89,6 @@ class Application(tk.Tk):
 
         self.valueType_error_displayed = False
 
-        self.load_powers_from_file()
 
 
     def on_text_modified(self, event):
@@ -130,30 +130,39 @@ class Application(tk.Tk):
             except json.JSONDecodeError:
                 messagebox.showerror(title="Error", message="Exporting failed.")
 
-    def load_powers_from_file(self):
-        # Wczytywanie mocy z pliku JSON
-        try:
-            with open("powers.json", "r", encoding="utf-8") as file:
-                data = json.load(file)
-                self.powers = data.get("powers", [])
-        except FileNotFoundError:
-            self.powers = []
-        except json.JSONDecodeError:
-            messagebox.showerror("Error", "Error reading powers file. Please check the file format.")
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred: {e}")
+    def add_power(self, listbox=None):
+        add_power_window = tk.Toplevel(self)
+        add_power_window.title("Add Power")
 
-    def save_powers_to_file(self):
-        # Zapis mocy do pliku JSON
-        try:
-            with open("powers.json", "w", encoding="utf-8") as file:
-                json.dump({"powers": self.powers}, file, ensure_ascii=False, indent=4)
-        except Exception as e:
-            messagebox.showerror("Error", f"Error saving powers to file: {e}")
-    
+        label = tk.Label(add_power_window, text="Enter new power:")
+        label.pack(padx=10, pady=10)
 
+        entry = tk.Entry(add_power_window)
+        entry.pack(padx=10, pady=10)
+
+        def add_power_to_list(event=None):
+            new_power = entry.get()
+            if new_power and new_power not in self.powers:
+                self.powers.append(new_power)
+                if listbox:  # Jeśli lista została przekazana
+                    listbox.insert(tk.END, new_power)
+                self.save_powers_to_file()
+                messagebox.showinfo("Success", f"Power '{new_power}' added!")
+                entry.delete(0, tk.END)
+                add_power_window.destroy()
+            else:
+                messagebox.showerror("Error", "Power already exists or is invalid.")
+                entry.delete(0, tk.END)
+
+        # Bind klawisza Enter do dodawania mocy
+        entry.bind("<Return>", add_power_to_list)
+
+        add_button = tk.Button(add_power_window, text="Add", command=add_power_to_list)
+        add_button.pack(pady=10)
 
     def select_or_add_power(self):
+        self.load_powers_from_file()
+
         power_window = tk.Toplevel(self)
         power_window.title("Select or Add Power")
 
@@ -171,14 +180,15 @@ class Application(tk.Tk):
             if selection:
                 selected_power = listbox.get(selection[0])
                 messagebox.showinfo("Selected Power", f"You selected: {selected_power}")
-                power_window.destroy()
+                power_window.destroy()  # Zamknięcie okna po wyborze
                 self.open_json_file()
+
+                # Tutaj można dodać dodatkowe akcje po wyborze mocy
             else:
                 messagebox.showwarning("Selection Error", "No power selected")
 
         def add_new_power():
             self.add_power(listbox)
-            #power_window.destroy()
 
         select_button = tk.Button(power_window, text="Select Power", command=on_select)
         select_button.pack(padx=5, pady=5)
@@ -186,34 +196,25 @@ class Application(tk.Tk):
         add_button = tk.Button(power_window, text="Add New Power", command=add_new_power)
         add_button.pack(padx=5, pady=5)
 
-    def add_power(self, listbox):
-        add_power_window = tk.Toplevel(self)
-        add_power_window.title("Add Power")
+    def load_powers_from_file(self):
+        try:
+            with open("powers.json", "r", encoding="utf-8") as file:
+                data = json.load(file)
+                self.powers = data.get("powers", [])
+        except FileNotFoundError:
+            self.powers = []
+        except json.JSONDecodeError:
+            messagebox.showerror("Error", "Error reading powers file. Please check the file format.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred: {e}")
 
-        label = tk.Label(add_power_window, text="Enter new power:")
-        label.pack(padx=10, pady=10)
+    def save_powers_to_file(self):
+        try:
+            with open("powers.json", "w", encoding="utf-8") as file:
+                json.dump({"powers": self.powers}, file, ensure_ascii=False, indent=4)
+        except Exception as e:
+            messagebox.showerror("Error", f"Error saving powers to file: {e}")
 
-        entry = tk.Entry(add_power_window)
-        entry.pack(padx=10, pady=10)
-
-        def add_power_to_list(event=None):
-            new_power = entry.get()
-            if new_power and new_power not in self.powers:
-                self.powers.append(new_power)
-                listbox.insert(tk.END, new_power)
-                self.save_powers_to_file()
-                messagebox.showinfo("Success", f"Power '{new_power}' added!")
-
-                entry.delete(0, tk.END)
-                add_power_window.destroy()
-            else:
-                messagebox.showerror("Error", "Power already exists or is invalid.")
-
-        # Bind klawisza Enter do dodawania mocy
-        entry.bind("<Return>", add_power_to_list)
-
-        add_button = tk.Button(add_power_window, text="Add", command=add_power_to_list)
-        add_button.pack(pady=10)
 
 
 
